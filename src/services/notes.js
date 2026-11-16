@@ -3,6 +3,7 @@ import { database } from '../lib/database';
 import { isSupabaseConfigured, restClient, supabase } from '../lib/supabase';
 
 const createId = () => crypto.randomUUID();
+const ACTIVE_SESSION_KEY = 'menotes.active-session.v1';
 
 function uniqueTags(tags) {
   const seen = new Set();
@@ -32,20 +33,71 @@ async function enqueue(noteId, type, payload) {
   });
 }
 
-export async function listLocalNotes() {
-  return database.notes.orderBy('updated_at').reverse().toArray();
+export function getActiveSessionId() {
+  return localStorage.getItem(ACTIVE_SESSION_KEY) ?? '';
 }
 
-export async function fetchNotes() {
-  const cached = await listLocalNotes();
+export async function listLocalNotes(sessionId = getActiveSessionId()) {
+  const allNotes = await database.notes.orderBy('updated_at').reverse().toArray();
+  return allNotes.filter((note) => (note.session_id ?? '') === sessionId);
+}
+
+export async function openNoteSession(sessionId, passphrase) {
+  if (!isSupabaseConfigured) throw new Error('Set up Supabase in Settings to use shared sessions.');
+  const normalizedId = sessionId.trim().toLowerCase();
+  if (normalizedId.length < 3 || normalizedId.length > 64) {
+    throw new Error('Session ID must be between 3 and 64 characters.');
+  }
+  if (!/^[a-z0-9 ._-]+$/.test(normalizedId)) {
+    throw new Error('Session ID can use letters, numbers, spaces, dots, underscores, and hyphens.');
+  }
+  if (passphrase.length < 10 || passphrase.length > 72 || new TextEncoder().encode(passphrase).length > 72) {
+    throw new Error('Passphrase must be 10 to 72 characters and at most 72 bytes.');
+  }
+  let response;
+  try {
+    response = await restClient.post('/rpc/open_note_session', {
+      p_session_id: normalizedId,
+      p_passphrase: passphrase,
+    });
+  } catch (error) {
+    throw new Error(error.response?.data?.message || error.message || 'Could not open this session.');
+  }
+  const resolvedId = typeof response.data === 'string'
+    ? response.data
+    : response.data?.open_note_session ?? response.data?.session_id;
+  if (typeof resolvedId !== 'string' || !resolvedId) {
+    throw new Error('Supabase returned an invalid session response.');
+  }
+  localStorage.setItem(ACTIVE_SESSION_KEY, resolvedId);
+  return resolvedId;
+}
+
+export function leaveNoteSession() {
+  localStorage.removeItem(ACTIVE_SESSION_KEY);
+}
+
+export async function fetchNotes(sessionId = getActiveSessionId()) {
+  const cached = await listLocalNotes(sessionId);
   if (!isSupabaseConfigured || !navigator.onLine) return { notes: cached, source: 'local' };
   try {
     await ensureSession();
     const response = await restClient.get('/notes', {
-      params: { select: '*', order: 'is_pinned.desc,sort_order.asc,updated_at.desc' },
+      params: {
+        select: '*',
+        order: 'is_pinned.desc,sort_order.asc,updated_at.desc',
+        session_id: sessionId ? `eq.${sessionId}` : 'is.null',
+      },
     });
     const serverNotes = response.data;
     await database.transaction('rw', database.notes, async () => {
+      const serverIds = new Set(serverNotes.map((note) => note.id));
+      const cachedInScope = await database.notes.toArray();
+      for (const local of cachedInScope) {
+        if ((local.session_id ?? '') === sessionId && local.syncStatus === 'synced' && !serverIds.has(local.id)) {
+          await database.notes.delete(local.id);
+        }
+      }
       for (const note of serverNotes) {
         const local = await database.notes.get(note.id);
         if (!local || local.syncStatus === 'synced' || local.updated_at <= note.updated_at) {
@@ -53,7 +105,7 @@ export async function fetchNotes() {
         }
       }
     });
-    return { notes: await listLocalNotes(), source: 'remote' };
+    return { notes: await listLocalNotes(sessionId), source: 'remote' };
   } catch (error) {
     return { notes: cached, source: 'local', error };
   }
@@ -104,6 +156,7 @@ export async function saveNote(input, existingId) {
     title: input.title.trim(),
     content: input.content,
     tags: uniqueTags(input.tags),
+    session_id: (current?.session_id ?? getActiveSessionId()) || null,
     image_paths: input.imageFile || input.removeImage ? [] : current?.image_paths ?? [],
     is_pinned: current?.is_pinned ?? false,
     is_archived: current?.is_archived ?? false,
@@ -183,7 +236,8 @@ async function syncUpsert(mutation) {
   const localImage = await database.images.where('noteId').equals(mutation.noteId).first();
   if (localImage) {
     const extension = localImage.blob.type === 'image/png' ? 'png' : localImage.blob.type === 'image/webp' ? 'webp' : 'jpg';
-    const path = `${session.user.id}/${mutation.noteId}/${localImage.id}.${extension}`;
+    const storageOwner = payload.session_id || session.user.id;
+    const path = `${storageOwner}/${mutation.noteId}/${localImage.id}.${extension}`;
     const { error: uploadError } = await supabase.storage.from('note-images').upload(path, localImage.blob, {
       contentType: localImage.blob.type,
       upsert: true,

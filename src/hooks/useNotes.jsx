@@ -4,7 +4,10 @@ import { database } from '../lib/database';
 import {
   deleteNote,
   fetchNotes,
+  getActiveSessionId,
+  leaveNoteSession,
   listLocalNotes,
+  openNoteSession,
   reorderNotes,
   saveNote,
   syncPending,
@@ -15,16 +18,33 @@ const NotesContext = createContext(null);
 
 export function NotesProvider({ children }) {
   const [notes, setNotes] = useState([]);
+  const [sessionId, setSessionId] = useState(getActiveSessionId);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
   const [sourceError, setSourceError] = useState('');
 
   const refresh = useCallback(async () => {
-    const result = await fetchNotes();
+    const result = await fetchNotes(sessionId);
     setNotes(result.notes);
     setSourceError(result.error?.message ?? '');
     setLoading(false);
+  }, [sessionId]);
+
+  const openSession = useCallback(async (id, passphrase) => {
+    const activeId = await openNoteSession(id, passphrase);
+    setSessionId(activeId);
+    const result = await fetchNotes(activeId);
+    setNotes(result.notes);
+    setSourceError(result.error?.message ?? '');
+    setLoading(false);
+    return activeId;
+  }, []);
+
+  const leaveSession = useCallback(() => {
+    leaveNoteSession();
+    setSessionId('');
+    setSourceError('');
   }, []);
 
   const sync = useCallback(async () => {
@@ -45,12 +65,12 @@ export function NotesProvider({ children }) {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      const cached = await listLocalNotes();
+      const cached = await listLocalNotes(sessionId);
       if (active) {
         setNotes(cached);
         setLoading(false);
       }
-      const result = await fetchNotes();
+      const result = await fetchNotes(sessionId);
       if (active) {
         setNotes(result.notes);
         setSourceError(result.error?.message ?? '');
@@ -71,12 +91,12 @@ export function NotesProvider({ children }) {
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [sync]);
+  }, [sync, sessionId]);
 
   const runLocal = useCallback(async (action) => {
     try {
       const value = await action();
-      setNotes(await listLocalNotes());
+      setNotes(await listLocalNotes(sessionId));
       if (isSupabaseConfigured && navigator.onLine) {
         syncPending()
           .then(refresh)
@@ -87,10 +107,11 @@ export function NotesProvider({ children }) {
       setError(err.message || 'Could not save your note.');
       throw err;
     }
-  }, [refresh]);
+  }, [refresh, sessionId]);
 
   const value = useMemo(() => ({
     notes,
+    sessionId,
     loading,
     syncing,
     error,
@@ -99,11 +120,13 @@ export function NotesProvider({ children }) {
     clearError: () => setError(''),
     refresh,
     sync,
+    openSession,
+    leaveSession,
     save: (input, id) => runLocal(() => saveNote(input, id)),
     remove: (id) => runLocal(() => deleteNote(id)),
     update: (id, updates) => runLocal(() => updateNoteProperties(id, updates)),
     reorder: (ids) => runLocal(() => reorderNotes(ids)),
-  }), [notes, loading, syncing, error, sourceError, refresh, sync, runLocal]);
+  }), [notes, sessionId, loading, syncing, error, sourceError, refresh, sync, openSession, leaveSession, runLocal]);
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;
 }

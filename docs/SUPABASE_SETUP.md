@@ -25,11 +25,15 @@ Buka SQL Editor pada project Supabase, lalu jalankan semua isi `docs/SUPABASE_SC
 SQL tersebut membuat:
 
 - tabel `public.notes`;
+- tabel `public.note_sessions` dan `public.note_session_members` untuk sesi bersama;
+- RPC `open_note_session` yang membuat/bergabung ke sesi dengan passphrase bcrypt;
 - indeks query per user;
 - trigger `updated_at`;
-- RLS policies untuk SELECT, INSERT, UPDATE, DELETE milik user yang sedang login;
+- RLS policies untuk catatan pribadi dan anggota sesi;
 - private Storage bucket `note-images`;
-- Storage policies berdasarkan folder user UUID.
+- Storage policies berdasarkan user UUID atau Session ID.
+
+Jalankan schema terbaru setelah memperbarui aplikasi. Skrip dapat dijalankan ulang pada project yang sudah memiliki tabel notes.
 
 ## 4. Authentication flow
 
@@ -43,12 +47,18 @@ Aplikasi tidak memiliki UI login. Pada startup:
 
 Anonymous sign-in membuat user ID berbeda untuk browser/perangkat yang berbeda. Catatan akan terisolasi per user karena RLS.
 
+### Shared Session ID
+
+Di halaman Notes, tombol `?` di sebelah form Session ID menjelaskan cara berbagi. Pengguna pertama yang membuka ID baru dengan passphrase membuat sesi; pengguna lain memasukkan pasangan yang sama untuk bergabung dari perangkat mereka. ID dinormalisasi menjadi huruf kecil. ID memakai 3–64 karakter berupa huruf, angka, spasi, titik, garis bawah, atau tanda hubung.
+
+Passphrase minimal 10 karakter dan maksimum 72 byte, disimpan sebagai bcrypt hash di database, dan tidak disimpan di browser. Siapa pun yang mengetahui ID serta passphrase dapat membaca, mengubah, dan menghapus catatan maupun gambar dalam sesi. Gunakan passphrase yang kuat dan simpan dengan aman. Tidak ada fitur pemulihan passphrase.
+
 ## 5. Storage path
 
 Gunakan path:
 
 ```text
-<user_id>/<note_id>/<random-filename>.<extension>
+<user_id-or-session_id>/<note_id>/<random-filename>.<extension>
 ```
 
 Contoh pola (bukan kredensial):

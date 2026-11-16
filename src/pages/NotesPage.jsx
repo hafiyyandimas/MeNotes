@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { NavLink } from 'react-router-dom';
-import { FilePlus2, Search, X } from 'lucide-react';
+import { CircleHelp, FilePlus2, Search, X } from 'lucide-react';
 import NoteCard from '../components/NoteCard';
 import { useNotes } from '../hooks/useNotes';
 
@@ -13,9 +13,15 @@ const filters = [
 ];
 
 export default function NotesPage() {
-  const { notes, loading, error, sourceError, clearError, update, reorder, sync, syncing } = useNotes();
+  const { notes, loading, error, sourceError, clearError, update, reorder, sync, syncing, sessionId, openSession, leaveSession, setupMessage } = useNotes();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [sessionInput, setSessionInput] = useState(sessionId);
+  const [passphrase, setPassphrase] = useState('');
+  const [sessionError, setSessionError] = useState('');
+  const [sessionStatus, setSessionStatus] = useState('');
+  const [openingSession, setOpeningSession] = useState(false);
+  const [showSessionGuide, setShowSessionGuide] = useState(false);
   const searchRef = useRef(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 7 } }),
@@ -41,6 +47,25 @@ export default function NotesPage() {
     return () => window.removeEventListener('keydown', onShortcut);
   }, []);
 
+  useEffect(() => setSessionInput(sessionId), [sessionId]);
+
+  async function handleOpenSession(event) {
+    event.preventDefault();
+    setSessionError('');
+    setSessionStatus('');
+    setOpeningSession(true);
+    try {
+      const activeId = await openSession(sessionInput, passphrase);
+      setSessionInput(activeId);
+      setPassphrase('');
+      setSessionStatus(`Opened “${activeId}”.`);
+    } catch (sessionOpenError) {
+      setSessionError(sessionOpenError.message || 'Could not open this session.');
+    } finally {
+      setOpeningSession(false);
+    }
+  }
+
   async function togglePin(note) {
     try { await update(note.id, { is_pinned: !note.is_pinned }); } catch { /* surfaced by NotesProvider */ }
   }
@@ -60,7 +85,41 @@ export default function NotesPage() {
         <div>
           <h1>Notes</h1>
         </div>
-        <NavLink className="button button-primary desktop-create" to="/notes/new"><FilePlus2 size={17} /> New note</NavLink>
+        <div className="notes-heading-actions">
+          <div className="session-area">
+            <form className="session-control" onSubmit={handleOpenSession}>
+              <button
+                type="button"
+                className="session-guide-button"
+                aria-label="Session ID guide"
+                aria-expanded={showSessionGuide}
+                aria-controls="session-guide"
+                onClick={() => setShowSessionGuide((visible) => !visible)}
+              >
+                <CircleHelp size={17} />
+              </button>
+              <label className="sr-only" htmlFor="session-id">Session ID</label>
+              <input id="session-id" value={sessionInput} onChange={(event) => setSessionInput(event.target.value)} placeholder="Session ID" maxLength={64} required />
+              <label className="sr-only" htmlFor="session-passphrase">Passphrase</label>
+              <input id="session-passphrase" type="password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} placeholder="Passphrase" minLength={10} maxLength={72} autoComplete="current-password" required />
+              <button className="button button-secondary session-submit" type="submit" disabled={openingSession || Boolean(setupMessage)}>
+                {openingSession ? 'Opening…' : sessionId ? 'Switch' : 'Open'}
+              </button>
+            </form>
+            {showSessionGuide && (
+              <aside className="session-guide" id="session-guide">
+                <strong>Shared notes</strong>
+                <p>First use creates a session. To reopen it elsewhere, enter the same Session ID and passphrase.</p>
+                <p>Session IDs ignore letter case. Use a strong passphrase of 10–72 characters. Anyone with both can view, edit, or delete these notes.</p>
+                <button type="button" className="text-button" onClick={() => setShowSessionGuide(false)}>Got it</button>
+              </aside>
+            )}
+            {sessionId && <div className="session-current"><span>Using <strong>{sessionId}</strong></span><button type="button" className="text-button" onClick={() => { leaveSession(); setSessionStatus('Switched to personal notes.'); setSessionError(''); }}>Personal notes</button></div>}
+            {(sessionError || (setupMessage && !sessionId)) && <p className="session-message session-error" role="alert">{sessionError || 'Set up Supabase in Settings to use shared sessions.'}</p>}
+            {sessionStatus && <p className="session-message" role="status">{sessionStatus}</p>}
+          </div>
+          <NavLink className="button button-primary desktop-create" to="/notes/new"><FilePlus2 size={17} /> New note</NavLink>
+        </div>
       </div>
 
       <div className="notes-toolbar">

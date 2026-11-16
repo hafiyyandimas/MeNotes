@@ -21,6 +21,7 @@ export default function SettingsPage() {
   );
   const [message, setMessage] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
+  const [installHelpOpen, setInstallHelpOpen] = useState(false);
 
   useEffect(() => {
     const updateOnline = () => setOnline(navigator.onLine);
@@ -53,7 +54,10 @@ export default function SettingsPage() {
   }, [notes, syncing]);
 
   async function installApp() {
-    if (!installPrompt) return;
+    if (!installPrompt) {
+      setInstallHelpOpen((open) => !open);
+      return;
+    }
     await installPrompt.prompt();
     const choice = await installPrompt.userChoice;
     setMessage(choice.outcome === 'accepted' ? 'MeNotes was added to your home screen.' : 'Install was dismissed.');
@@ -115,10 +119,13 @@ export default function SettingsPage() {
             <div className="status-card install-status">
               <div className="status-icon">{installState === 'installed' ? <Smartphone size={18} /> : <MonitorDown size={18} />}</div>
               <div className="status-copy"><strong>{installState === 'installed' ? 'Installed on this device' : 'Install app'}</strong><span>{installState === 'installed' ? 'Open it from your home screen or app list.' : 'Add MeNotes to your home screen.'}</span></div>
-              {installPrompt && <button className="button button-primary sync-button" type="button" onClick={installApp}><Download size={15} />Install</button>}
+              <button className="button button-primary sync-button" type="button" onClick={installApp} disabled={installState === 'installed'}>
+                {installPrompt ? <Download size={15} /> : <MonitorDown size={15} />}
+                {installState === 'installed' ? 'Installed' : 'Install'}
+              </button>
             </div>
-            {installState !== 'installed' && !installPrompt && (
-              <div className="install-help"><strong>Install instructions</strong><p>On iPhone or iPad: open this site in Safari, tap Share, then choose <em>Add to Home Screen</em>. On desktop, use your browser’s install icon or menu.</p></div>
+            {installState !== 'installed' && !installPrompt && installHelpOpen && (
+              <div className="install-help"><strong>Install instructions</strong><p>iPhone/iPad: open in Safari, tap Share, then <em>Add to Home Screen</em>. Android: open the browser menu, then choose <em>Install app</em> or <em>Add to Home Screen</em>.</p></div>
             )}
             {setupMessage && <p className="settings-note">{setupMessage}</p>}
             {message && <p className="settings-feedback" role="status">{message}</p>}
