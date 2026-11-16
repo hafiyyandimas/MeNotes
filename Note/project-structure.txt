@@ -1,0 +1,102 @@
+menote/
+├── public/
+│   ├── icons/
+│   │   ├── icon-192.png
+│   │   ├── icon-512.png
+│   │   └── maskable-icon-512.png
+│   └── favicon.svg
+├── src/
+│   ├── app/
+│   │   ├── App.jsx
+│   │   ├── router.jsx
+│   │   └── AppProviders.jsx
+│   ├── assets/
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── AppShell.jsx
+│   │   │   ├── AppHeader.jsx
+│   │   │   └── Navigation.jsx
+│   │   ├── notes/
+│   │   │   ├── NoteCard.jsx
+│   │   │   ├── NotesGrid.jsx
+│   │   │   ├── NoteEditor.jsx
+│   │   │   ├── NoteDetail.jsx
+│   │   │   ├── NoteImagePicker.jsx
+│   │   │   ├── NoteFilters.jsx
+│   │   │   └── SortableNoteCard.jsx
+│   │   ├── common/
+│   │   │   ├── Button.jsx
+│   │   │   ├── IconButton.jsx
+│   │   │   ├── Modal.jsx
+│   │   │   ├── ConfirmDialog.jsx
+│   │   │   ├── EmptyState.jsx
+│   │   │   ├── ErrorState.jsx
+│   │   │   ├── Skeleton.jsx
+│   │   │   └── Toast.jsx
+│   │   └── pwa/
+│   │       ├── InstallPrompt.jsx
+│   │       ├── OfflineIndicator.jsx
+│   │       └── UpdatePrompt.jsx
+│   ├── pages/
+│   │   ├── NotesPage.jsx
+│   │   ├── SettingsPage.jsx
+│   │   ├── AboutPage.jsx
+│   │   └── NoteRoutePage.jsx
+│   ├── hooks/
+│   │   ├── useNotes.js
+│   │   ├── useNote.js
+│   │   ├── useSettings.js
+│   │   ├── useOnlineStatus.js
+│   │   └── useSyncStatus.js
+│   ├── contexts/
+│   │   ├── AuthContext.jsx
+│   │   ├── SettingsContext.jsx
+│   │   └── NotesContext.jsx
+│   ├── services/
+│   │   ├── noteService.js
+│   │   ├── storageService.js
+│   │   ├── authService.js
+│   │   └── syncService.js
+│   ├── config/
+│   │   ├── env.js
+│   │   ├── supabase.js
+│   │   └── api.js
+│   ├── db/
+│   │   ├── localDatabase.js
+│   │   ├── noteRepository.js
+│   │   └── mutationQueue.js
+│   ├── data/
+│   │   └── studentProfile.js
+│   ├── styles/
+│   │   ├── index.css
+│   │   ├── tokens.css
+│   │   └── animations.css
+│   ├── utils/
+│   │   ├── date.js
+│   │   ├── noteHelpers.js
+│   │   ├── fileValidation.js
+│   │   └── errorMessages.js
+│   └── main.jsx
+├── docs/
+│   ├── PROJECT_SPEC.md
+│   ├── TECHNICAL_ARCHITECTURE.md
+│   ├── SUPABASE_SETUP.md
+│   ├── SUPABASE_SCHEMA.sql
+│   ├── IMPLEMENTATION_ROADMAP.md
+│   └── ACCEPTANCE_TESTS.md
+├── .env.example
+├── .gitignore
+├── AI.md
+├── antislop.md
+├── CLAUDE_HANDOFF.md
+├── README.md
+├── index.html
+├── package.json
+├── postcss.config.js             # if selected Tailwind setup requires it
+├── vite.config.js
+└── vercel.json
+
+Notes:
+- File tree is the target architecture, not a claim that the source code has already been implemented.
+- Keep files focused; the coding agent may add a small number of focused files when needed.
+- Do not create extra primary navigation pages.
