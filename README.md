@@ -56,5 +56,3 @@ PWA/service worker diuji pada production build; instalasi dan perilaku offline a
 | NIM | 21120124140130 |
 | Kelompok | 18 |
 | Shift | 03 |
-
-Spesifikasi sumber tugas tersedia dalam folder [Note](./Note/).
